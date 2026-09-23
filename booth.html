@@ -280,12 +280,12 @@
     </div>
 
     <div class="group" id="wantedFields">
-      <div class="group-title">Poster details</div>
+      <div class="group-title">Guest</div>
       <div class="field">
         <label for="posterName">Name</label>
-        <input type="text" id="posterName" placeholder="Your pirate name" maxlength="28" autocomplete="off" autocapitalize="words">
+        <input type="text" id="posterName" placeholder="Your name" maxlength="28" autocomplete="off" autocapitalize="words">
       </div>
-      <div class="field">
+      <div class="field" id="bountyRow">
         <label for="posterBounty">Bounty</label>
         <input type="text" id="posterBounty" maxlength="18" autocomplete="off" inputmode="numeric">
         <button class="icon-btn" id="rerollBtn" aria-label="New random bounty">🎲</button>
@@ -477,7 +477,7 @@
   var selectedUid = null;
   var uidCounter = 0;
   var busy = false;
-  var lastColorCanvas = null, lastPrintCanvas = null;
+  var lastColorCanvas = null, lastPrintCanvas = null, lastData = null;
 
   // =========================================================
   // Camera
@@ -548,7 +548,7 @@
     mode = m;
     $("modeWanted").classList.toggle("on", m === "wanted");
     $("modeFrame").classList.toggle("on", m === "frame");
-    $("wantedFields").style.display = m === "wanted" ? "block" : "none";
+    $("bountyRow").style.display = m === "wanted" ? "flex" : "none";
     stage.classList.toggle("mode-frame", m === "frame");
     if (m === "wanted") {
       $("stageLabel").textContent = "Wanted";
@@ -757,6 +757,7 @@
         mirror: facing === "user",
         stickers: placed.map(function (s) { return { type: s.type, x: s.x, y: s.y, w: s.w, rot: s.rot }; })
       };
+      lastData = data;
       lastColorCanvas = composeColor(frozen, data);
       lastPrintCanvas = composePrint(frozen, data);
       showResult();
@@ -896,9 +897,19 @@
       fitFont(ctx, name, 980, 150, "SIZEpx " + PIRATA, 40);
       ctx.fillText(name, 600, 1590);
 
-      var bounty = "\u0e3f " + (data.bounty || "???") + " -";
-      fitFont(ctx, bounty, 980, 100, "700 SIZEpx " + CINZEL, 40);
-      ctx.fillText(bounty, 600, 1710);
+      // Center the digits themselves; hang the berry sign and dash outside them.
+      var num = data.bounty || "???";
+      var size = fitFont(ctx, "\u0e3f " + num + " -", 980, 100, "700 SIZEpx " + CINZEL, 40);
+      ctx.font = "700 " + size + "px " + CINZEL;
+      var numW = ctx.measureText(num).width;
+      var gap = size * 0.18;
+      ctx.textAlign = "center";
+      ctx.fillText(num, 600, 1710);
+      ctx.textAlign = "right";
+      ctx.fillText("\u0e3f", 600 - numW / 2 - gap, 1710);
+      ctx.textAlign = "left";
+      ctx.fillText("-", 600 + numW / 2 + gap * 0.6, 1710);
+      ctx.textAlign = "center";
     } else {
       var c1 = data.caption1 || "";
       if (c1) {
@@ -1022,13 +1033,145 @@
   }
 
   // =========================================================
+  // File names + embedded photo details (EXIF + XMP)
+  // =========================================================
+  function slug(t) {
+    return (t || "").normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^A-Za-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
+  }
+  function stamp() {
+    var d = new Date();
+    function p(n) { return (n < 10 ? "0" : "") + n; }
+    return p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds());
+  }
+  function fileBase(data) {
+    var who = slug(data.name) || "pirate";
+    var kind = data.mode === "wanted" ? "wanted" : "party";
+    return kind + "-" + who + "-" + stamp();
+  }
+  function describe(data) {
+    var who = data.name || "Unknown pirate";
+    if (data.mode === "wanted") return "WANTED: " + who + ". Bounty \u0e3f" + (data.bounty || "???");
+    return who + ". " + [data.caption1, data.caption2].filter(Boolean).join(", ");
+  }
+
+  function asciiOnly(t) {
+    return (t || "").normalize("NFKD").replace(/[^\x20-\x7e]/g, "");
+  }
+  function exifDate(d) {
+    function p(n) { return (n < 10 ? "0" : "") + n; }
+    return d.getFullYear() + ":" + p(d.getMonth() + 1) + ":" + p(d.getDate()) + " " +
+      p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds());
+  }
+
+  // Minimal EXIF block: ImageDescription, Artist, Software, DateTime.
+  function buildExif(desc, artist) {
+    var entries = [
+      [0x010e, asciiOnly(desc)],
+      [0x0131, "Pirate Booth"],
+      [0x0132, exifDate(new Date())],
+      [0x013b, asciiOnly(artist)]
+    ].filter(function (e) { return e[1]; });
+    var n = entries.length;
+    var ifdSize = 2 + n * 12 + 4;
+    var dataStart = 8 + ifdSize;
+    var strs = entries.map(function (e) { return e[1] + "\0"; });
+    var total = dataStart + strs.reduce(function (a, s) { return a + (s.length > 4 ? s.length : 0); }, 0);
+    var tiff = new Uint8Array(total);
+    var dv = new DataView(tiff.buffer);
+    tiff[0] = 0x49; tiff[1] = 0x49; dv.setUint16(2, 42, true); dv.setUint32(4, 8, true);
+    dv.setUint16(8, n, true);
+    var off = dataStart;
+    entries.forEach(function (e, i) {
+      var at = 10 + i * 12, s = strs[i];
+      dv.setUint16(at, e[0], true);
+      dv.setUint16(at + 2, 2, true);
+      dv.setUint32(at + 4, s.length, true);
+      if (s.length <= 4) {
+        for (var j = 0; j < s.length; j++) tiff[at + 8 + j] = s.charCodeAt(j);
+      } else {
+        dv.setUint32(at + 8, off, true);
+        for (var k = 0; k < s.length; k++) tiff[off + k] = s.charCodeAt(k);
+        off += s.length;
+      }
+    });
+    dv.setUint32(10 + n * 12, 0, true);
+    return segment(0xe1, concatBytes([asciiBytes("Exif\0\0"), tiff]));
+  }
+
+  function xmlEsc(t) {
+    return (t || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+  // XMP title + description (what Photos and most apps show as caption/title).
+  function buildXmp(title, desc) {
+    var alt = function (v) { return '<rdf:Alt><rdf:li xml:lang="x-default">' + xmlEsc(v) + "</rdf:li></rdf:Alt>"; };
+    var xmp = '<?xpacket begin="\ufeff" id="W5M0MpCehiHzreSzNTczkc9d"?>' +
+      '<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">' +
+      '<rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/">' +
+      "<dc:title>" + alt(title) + "</dc:title>" +
+      "<dc:description>" + alt(desc) + "</dc:description>" +
+      "</rdf:Description></rdf:RDF></x:xmpmeta>" +
+      '<?xpacket end="w"?>';
+    return segment(0xe1, concatBytes([asciiBytes("http://ns.adobe.com/xap/1.0/\0"), new TextEncoder().encode(xmp)]));
+  }
+
+  function asciiBytes(s) { var a = new Uint8Array(s.length); for (var i = 0; i < s.length; i++) a[i] = s.charCodeAt(i) & 0xff; return a; }
+  function concatBytes(parts) {
+    var len = parts.reduce(function (a, p) { return a + p.length; }, 0);
+    var out = new Uint8Array(len), o = 0;
+    parts.forEach(function (p) { out.set(p, o); o += p.length; });
+    return out;
+  }
+  function segment(marker, payload) {
+    var len = payload.length + 2;
+    return concatBytes([new Uint8Array([0xff, marker, (len >> 8) & 0xff, len & 0xff]), payload]);
+  }
+
+  function tagJpeg(blob, data) {
+    return blob.arrayBuffer().then(function (buf) {
+      var b = new Uint8Array(buf);
+      if (b[0] !== 0xff || b[1] !== 0xd8) return blob;
+      var insertAt = 2;
+      if (b[2] === 0xff && b[3] === 0xe0) insertAt = 4 + ((b[4] << 8) | b[5]); // after JFIF header
+      var title = data.name || (data.mode === "wanted" ? "Wanted poster" : "Pirate Booth");
+      var tagged = concatBytes([
+        b.subarray(0, insertAt),
+        buildExif(describe(data), data.name),
+        buildXmp(title, describe(data)),
+        b.subarray(insertAt)
+      ]);
+      return new Blob([tagged], { type: "image/jpeg" });
+    }).catch(function () { return blob; });
+  }
+
+  function canvasBlob(canvas, type, quality) {
+    return new Promise(function (resolve) { canvas.toBlob(resolve, type, quality); });
+  }
+
+  // =========================================================
   // Result: print / save / send
   // =========================================================
   var resultOverlay = $("resultOverlay"), resultImg = $("resultImg"), resultNote = $("resultNote");
   var showingPrint = false;
   var colorUrl = "", printUrl = "";
 
+  var colorFile = null, printFile = null;
+
   function showResult() {
+    colorFile = null; printFile = null;
+    var base = fileBase(lastData);
+    canvasBlob(lastColorCanvas, "image/jpeg", 0.92).then(function (blob) {
+      return blob ? tagJpeg(blob, lastData) : null;
+    }).then(function (tagged) {
+      if (!tagged) return;
+      colorFile = new File([tagged], base + ".jpg", { type: "image/jpeg" });
+      if (colorUrl.indexOf("blob:") === 0) URL.revokeObjectURL(colorUrl);
+      colorUrl = URL.createObjectURL(tagged);
+      if (!showingPrint) resultImg.src = colorUrl;
+    });
+    canvasBlob(lastPrintCanvas, "image/png").then(function (blob) {
+      if (blob) printFile = new File([blob], base + "-print-4x6.png", { type: "image/png" });
+    });
     colorUrl = lastColorCanvas.toDataURL("image/jpeg", 0.92);
     printUrl = lastPrintCanvas.toDataURL("image/png");
     showingPrint = false;
@@ -1053,37 +1196,30 @@
     img.src = printUrl;
   });
 
-  function shareCanvas(canvas, filename, type, quality) {
-    return new Promise(function (resolve) {
-      canvas.toBlob(function (blob) {
-        if (!blob) { resolve(false); return; }
-        var file;
-        try { file = new File([blob], filename, { type: type }); } catch (e) { resolve(false); return; }
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-          navigator.share({ files: [file] }).then(function () { resolve(true); })
-            .catch(function (err) { resolve(err && err.name === "AbortError" ? true : false); });
-        } else {
-          resolve(false);
-        }
-      }, type, quality);
-    });
+  function shareFile(file) {
+    if (!file) return Promise.resolve(false);
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      return navigator.share({ files: [file], title: file.name }).then(function () { return true; })
+        .catch(function (err) { return !!(err && err.name === "AbortError"); });
+    }
+    return Promise.resolve(false);
   }
 
   $("saveBtn").addEventListener("click", function () {
-    shareCanvas(lastColorCanvas, "pirate-booth.jpg", "image/jpeg", 0.92).then(function (ok) {
+    shareFile(colorFile).then(function (ok) {
       if (!ok) {
         resultImg.src = colorUrl;
         showingPrint = false;
         $("toggleViewBtn").textContent = "Show print version";
         resultNote.textContent = "Press and hold the photo, then tap Save to Photos.";
       } else {
-        resultNote.textContent = "Choose Save Image to keep it in Photos.";
+        resultNote.textContent = "Saved as " + colorFile.name;
       }
     });
   });
 
   $("sendPrintBtn").addEventListener("click", function () {
-    shareCanvas(lastPrintCanvas, "pirate-booth-print-4x6.png", "image/png").then(function (ok) {
+    shareFile(printFile).then(function (ok) {
       if (!ok) {
         resultImg.src = printUrl;
         showingPrint = true;
@@ -1121,6 +1257,11 @@
 
   // Exposed for testing layouts without a camera.
   window.PirateBooth = {
+    tagTest: function (canvas, data) {
+      return canvasBlob(canvas, "image/jpeg", 0.9).then(function (b) { return tagJpeg(b, data); })
+        .then(function (t) { return t.arrayBuffer(); })
+        .then(function (buf) { return { name: fileBase(data) + ".jpg", bytes: Array.from(new Uint8Array(buf)) }; });
+    },
     renderTest: function (frozen, data) {
       data = Object.assign({ mode: "wanted", name: "", bounty: "", caption1: settings.caption1, caption2: settings.caption2, mirror: false, stickers: [] }, data || {});
       return { color: composeColor(frozen, data), print: composePrint(frozen, data) };
