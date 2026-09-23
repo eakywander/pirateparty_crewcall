@@ -1,0 +1,1134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Pirate Booth">
+<title>Pirate Booth</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Pirata+One&family=Cinzel:wght@500;700&family=Lora:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #1a1108;
+    --wood: #3c2414;
+    --wood-dark: #26150c;
+    --parchment: #e9d8b4;
+    --parchment-dark: #d8c191;
+    --panel: #f2e6c8;
+    --ink: #2c1c10;
+    --ink-soft: #4a3420;
+    --gold: #b8862f;
+    --gold-bright: #d6a94a;
+    --red: #7a2418;
+    --muted: #a99872;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: 'Lora', Georgia, serif;
+    background:
+      radial-gradient(ellipse at 20% 10%, rgba(255,220,150,0.06), transparent 55%),
+      radial-gradient(ellipse at 80% 90%, rgba(255,180,100,0.05), transparent 55%),
+      var(--bg);
+    color: var(--parchment);
+    overflow: hidden;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  #app {
+    height: 100%;
+    display: grid;
+    grid-template-columns: 1fr 330px;
+    gap: 18px;
+    padding: calc(14px + env(safe-area-inset-top, 0px)) 18px calc(14px + env(safe-area-inset-bottom, 0px));
+  }
+  @media (orientation: portrait), (max-width: 820px) {
+    #app { grid-template-columns: 1fr; grid-template-rows: 1fr auto; overflow-y: auto; }
+    body { overflow: auto; }
+  }
+
+  /* ---------- Stage ---------- */
+  .stage-col {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    min-height: 0;
+  }
+  .stage-label {
+    font-family: 'Pirata One', serif; font-size: 44px; line-height: 1;
+    color: var(--gold-bright); margin-bottom: 8px; letter-spacing: 2px;
+    text-shadow: 0 2px 0 rgba(0,0,0,0.4);
+  }
+  .stage-sub {
+    font-family: 'Cinzel', serif; font-weight: 700; font-size: 14px; letter-spacing: 5px;
+    color: #c9b48a; margin-top: 10px; text-transform: uppercase; text-align: center;
+  }
+  .stage {
+    position: relative;
+    height: min(calc(100vh - 150px), 900px);
+    aspect-ratio: 9 / 10;
+    max-width: 100%;
+    background: #0d0804;
+    border: 6px solid var(--parchment-dark);
+    outline: 2px solid var(--wood-dark);
+    border-radius: 6px;
+    overflow: hidden;
+    touch-action: none;
+    box-shadow: 0 18px 44px rgba(0,0,0,0.55);
+  }
+  @media (orientation: portrait), (max-width: 820px) {
+    .stage { height: auto; width: min(94vw, calc((100vh - 360px) * 0.9)); min-width: 280px; }
+  }
+  .stage.mode-frame { border-color: var(--gold); }
+  .stage video {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: cover; background: #0d0804;
+  }
+  .stage video.mirror { transform: scaleX(-1); }
+
+  #stickerLayer { position: absolute; inset: 0; }
+  .sticker {
+    position: absolute; transform-origin: 50% 50%;
+    pointer-events: auto;
+  }
+  .sticker svg { display: block; width: 100%; height: auto; pointer-events: none; filter: drop-shadow(0 2px 3px rgba(0,0,0,0.35)); }
+  .sticker.selected { outline: 2px dashed rgba(255,242,217,0.85); outline-offset: 4px; border-radius: 6px; }
+  .sticker .del {
+    display: none; position: absolute; top: -18px; right: -18px;
+    width: 36px; height: 36px; border-radius: 50%;
+    background: var(--red); color: #fff2d9; border: 2px solid #fff2d9;
+    font-size: 18px; line-height: 30px; text-align: center; font-family: 'Cinzel', serif; font-weight: 700;
+  }
+  .sticker.selected .del { display: block; }
+
+  #countdown {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-family: 'Pirata One', serif; font-size: 220px; color: #fff2d9;
+    text-shadow: 0 6px 24px rgba(0,0,0,0.7); pointer-events: none; opacity: 0;
+  }
+  #countdown.show { opacity: 1; }
+  #flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; transition: opacity 0.5s ease; }
+  #flash.on { opacity: 1; transition: none; }
+
+  #startOverlay {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; text-align: center; padding: 24px;
+    background: radial-gradient(ellipse at 50% 40%, #2e1c0e, #0d0804);
+  }
+  #startOverlay .big {
+    font-family: 'Pirata One', serif; font-size: 52px; color: var(--gold-bright); line-height: 1; margin-bottom: 10px;
+  }
+  #startOverlay p { font-size: 15px; color: #c9b48a; font-style: italic; margin: 0 0 22px; max-width: 360px; }
+  #startMsg { color: #e8a58c !important; font-style: normal !important; margin-top: 16px !important; }
+
+  /* ---------- Controls ---------- */
+  .controls {
+    display: flex; flex-direction: column; gap: 14px;
+    min-height: 0; overflow-y: auto; padding-bottom: 6px;
+  }
+  .group {
+    background: rgba(242,230,200,0.06);
+    border: 1px solid rgba(216,193,145,0.25);
+    border-radius: 12px;
+    padding: 12px;
+  }
+  .group-title {
+    font-family: 'Cinzel', serif; font-size: 11px; letter-spacing: 2px;
+    color: #c9b48a; margin-bottom: 9px;
+  }
+  .seg { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .seg button {
+    font-family: 'Cinzel', serif; font-weight: 700; font-size: 13px;
+    padding: 12px 6px; border-radius: 8px; cursor: pointer;
+    background: transparent; color: #d8c191; border: 1.5px solid rgba(216,193,145,0.35);
+  }
+  .seg button.on { background: var(--parchment); color: var(--ink); border-color: var(--parchment); }
+
+  .field { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .field:last-child { margin-bottom: 0; }
+  .field label { font-size: 12px; color: var(--muted); width: 58px; flex-shrink: 0; }
+  .field input[type="text"] {
+    flex: 1; min-width: 0; font-family: 'Lora', serif; font-size: 16px;
+    padding: 10px 11px; border-radius: 8px; border: 1.5px solid var(--wood-dark);
+    background: #fbf3dd; color: var(--ink); outline: none;
+  }
+  .field input[type="text"]:focus { border-color: var(--gold); }
+  .icon-btn {
+    width: 42px; height: 42px; flex-shrink: 0; border-radius: 8px; cursor: pointer;
+    background: var(--wood); color: #fff2d9; border: 1px solid rgba(216,193,145,0.35); font-size: 18px;
+  }
+
+  .tray { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .tray button {
+    aspect-ratio: 1; border-radius: 10px; cursor: pointer; padding: 8px;
+    background: rgba(242,230,200,0.1); border: 1px solid rgba(216,193,145,0.3);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .tray button svg { width: 100%; height: 100%; }
+  .tray button:active { transform: scale(0.94); }
+  .tray-hint { font-size: 12px; font-style: italic; color: var(--muted); margin-top: 9px; line-height: 1.45; }
+  .link-btn {
+    background: none; border: none; color: #c9b48a; text-decoration: underline;
+    font-family: 'Lora', serif; font-size: 12.5px; font-style: italic; padding: 6px 0 0; cursor: pointer;
+  }
+
+  .shoot {
+    font-family: 'Pirata One', serif; font-size: 34px; letter-spacing: 1px;
+    color: #fff2d9; background: linear-gradient(180deg, #9a2e1e, var(--wood-dark));
+    border: none; border-radius: 14px; padding: 16px 10px; cursor: pointer;
+    box-shadow: 0 5px 0 #401009, 0 10px 22px rgba(0,0,0,0.45);
+  }
+  .shoot:active { transform: translateY(4px); box-shadow: 0 1px 0 #401009, 0 4px 10px rgba(0,0,0,0.45); }
+  .shoot:disabled { opacity: 0.45; }
+  .row { display: flex; gap: 8px; }
+  .row .sm {
+    flex: 1; font-family: 'Cinzel', serif; font-size: 12px; letter-spacing: 1px;
+    padding: 11px 6px; border-radius: 8px; cursor: pointer;
+    background: transparent; color: #d8c191; border: 1px solid rgba(216,193,145,0.35);
+  }
+
+  /* ---------- Overlays ---------- */
+  .overlay {
+    position: fixed; inset: 0; z-index: 50; background: rgba(10,5,2,0.92);
+    display: none; align-items: center; justify-content: center;
+    padding: calc(16px + env(safe-area-inset-top, 0px)) 16px calc(16px + env(safe-area-inset-bottom, 0px));
+  }
+  .overlay.show { display: flex; }
+
+  .result {
+    display: flex; gap: 26px; align-items: center; justify-content: center;
+    width: 100%; height: 100%; max-width: 1100px;
+  }
+  @media (orientation: portrait), (max-width: 820px) {
+    .result { flex-direction: column; gap: 14px; }
+  }
+  .result-img-wrap { height: 100%; max-height: 100%; display: flex; align-items: center; justify-content: center; min-height: 0; flex: 1; }
+  .result-img-wrap img {
+    max-height: 100%; max-width: 100%; display: block;
+    box-shadow: 0 18px 50px rgba(0,0,0,0.6); border-radius: 4px; background: #fff;
+    -webkit-user-select: auto; user-select: auto; -webkit-touch-callout: default;
+  }
+  .result-actions { display: flex; flex-direction: column; gap: 10px; width: 280px; flex-shrink: 0; }
+  @media (orientation: portrait), (max-width: 820px) {
+    .result-img-wrap { height: auto; max-height: 62vh; }
+    .result-img-wrap img { max-height: 62vh; }
+    .result-actions { width: min(420px, 100%); }
+  }
+  .result-title { font-family: 'Pirata One', serif; font-size: 36px; color: var(--gold-bright); text-align: center; line-height: 1; margin-bottom: 4px; }
+  .act {
+    font-family: 'Cinzel', serif; font-weight: 700; font-size: 14px; letter-spacing: 1px;
+    padding: 15px 10px; border-radius: 10px; cursor: pointer; border: none;
+  }
+  .act.primary { background: linear-gradient(180deg, #9a2e1e, var(--wood-dark)); color: #fff2d9; box-shadow: 0 4px 0 #401009; }
+  .act.secondary { background: var(--parchment); color: var(--ink); }
+  .act.ghost { background: transparent; color: #d8c191; border: 1px solid rgba(216,193,145,0.4); }
+  .result-note { font-size: 12.5px; font-style: italic; color: var(--muted); text-align: center; line-height: 1.45; min-height: 18px; }
+
+  .settings {
+    width: 100%; max-width: 480px; background: linear-gradient(180deg, var(--panel), var(--parchment-dark));
+    color: var(--ink); border-radius: 16px; padding: 22px 20px; border: 2px solid var(--wood-dark);
+  }
+  .settings h2 { font-family: 'Pirata One', serif; font-weight: 400; font-size: 32px; margin: 0 0 14px; color: var(--ink); }
+  .settings label { display: block; font-family: 'Cinzel', serif; font-size: 11px; letter-spacing: 1.5px; color: var(--ink-soft); margin: 12px 0 6px; }
+  .settings input[type="text"] {
+    width: 100%; font-family: 'Lora', serif; font-size: 16px; padding: 11px 12px; border-radius: 8px;
+    border: 1.5px solid var(--wood-dark); background: #fbf3dd; color: var(--ink); outline: none;
+  }
+  .settings input[type="range"] { width: 100%; }
+  .settings .help { font-size: 12.5px; font-style: italic; color: var(--ink-soft); margin-top: 4px; }
+  .settings .act { width: 100%; margin-top: 18px; }
+
+  #printArea { display: none; }
+
+  @page { size: 4in 6in; margin: 0; }
+  @media print {
+    html, body { background: #fff !important; height: auto; overflow: visible; }
+    #app, .overlay { display: none !important; }
+    #printArea { display: block !important; }
+    #printArea img { display: block; width: 4in; height: 6in; }
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <main class="stage-col">
+    <div class="stage-label" id="stageLabel">Wanted</div>
+    <div class="stage" id="stage">
+      <video id="video" playsinline muted autoplay></video>
+      <div id="stickerLayer"></div>
+      <div id="countdown"></div>
+      <div id="flash"></div>
+      <div id="startOverlay">
+        <div class="big">Pirate Booth</div>
+        <p>Strike a pose, add some pirate gear, and walk away with your own bounty poster.</p>
+        <button class="shoot" id="startBtn" style="padding:14px 34px;font-size:30px;">Open the camera</button>
+        <p id="startMsg"></p>
+      </div>
+    </div>
+    <div class="stage-sub" id="stageSub">Dead or alive</div>
+  </main>
+
+  <aside class="controls">
+    <div class="group">
+      <div class="group-title">Style</div>
+      <div class="seg">
+        <button id="modeWanted" class="on">Wanted poster</button>
+        <button id="modeFrame">Party frame</button>
+      </div>
+    </div>
+
+    <div class="group" id="wantedFields">
+      <div class="group-title">Poster details</div>
+      <div class="field">
+        <label for="posterName">Name</label>
+        <input type="text" id="posterName" placeholder="Your pirate name" maxlength="28" autocomplete="off" autocapitalize="words">
+      </div>
+      <div class="field">
+        <label for="posterBounty">Bounty</label>
+        <input type="text" id="posterBounty" maxlength="18" autocomplete="off" inputmode="numeric">
+        <button class="icon-btn" id="rerollBtn" aria-label="New random bounty">🎲</button>
+      </div>
+    </div>
+
+    <div class="group">
+      <div class="group-title">Pirate gear</div>
+      <div class="tray" id="tray"></div>
+      <div class="tray-hint">Tap to add. Drag to move, pinch with two fingers to resize or tilt.</div>
+      <button class="link-btn" id="clearStickers">Remove all gear</button>
+    </div>
+
+    <button class="shoot" id="shootBtn" disabled>Take photo</button>
+
+    <div class="row">
+      <button class="sm" id="flipBtn">Flip camera</button>
+      <button class="sm" id="settingsBtn">Host settings</button>
+    </div>
+  </aside>
+</div>
+
+<!-- Result -->
+<div class="overlay" id="resultOverlay">
+  <div class="result">
+    <div class="result-img-wrap"><img id="resultImg" alt="Your photo"></div>
+    <div class="result-actions">
+      <div class="result-title">Ahoy!</div>
+      <button class="act primary" id="printBtn">Print</button>
+      <button class="act secondary" id="saveBtn">Save photo</button>
+      <button class="act ghost" id="sendPrintBtn">Send print file</button>
+      <button class="act ghost" id="toggleViewBtn">Show print version</button>
+      <button class="act ghost" id="doneBtn">Done</button>
+      <div class="result-note" id="resultNote"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Settings -->
+<div class="overlay" id="settingsOverlay">
+  <div class="settings">
+    <h2>Host settings</h2>
+    <label for="cap1">Party frame, big line</label>
+    <input type="text" id="cap1" maxlength="30">
+    <label for="cap2">Party frame, small line</label>
+    <input type="text" id="cap2" maxlength="40">
+    <label for="darkness">Print darkness</label>
+    <input type="range" id="darkness" min="-40" max="40" step="5">
+    <div class="help">Nudge right if prints come out too light, left if faces look too dark.</div>
+    <button class="act primary" id="settingsDone">Done</button>
+  </div>
+</div>
+
+<div id="printArea"><img id="printImg" alt=""></div>
+
+<script>
+(function () {
+  "use strict";
+
+  // =========================================================
+  // Settings
+  // =========================================================
+  var SETTINGS_KEY = "pirateBooth.settings";
+  function todayStr() {
+    try { return new Date().toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" }); }
+    catch (e) { return ""; }
+  }
+  function defaults() { return { caption1: "Birthday Voyage", caption2: todayStr(), darkness: 0 }; }
+  function loadSettings() {
+    try {
+      var s = JSON.parse(localStorage.getItem(SETTINGS_KEY));
+      if (s && typeof s === "object") {
+        var d = defaults();
+        Object.keys(d).forEach(function (k) { if (s[k] === undefined) s[k] = d[k]; });
+        return s;
+      }
+    } catch (e) {}
+    return defaults();
+  }
+  function saveSettings() { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) {} }
+  var settings = loadSettings();
+
+  // =========================================================
+  // Sticker art (drawn once, used for both the live preview
+  // and the final photo, so they always match)
+  // =========================================================
+  function ell(cx, cy, rx, ry) {
+    return "M" + (cx - rx) + " " + cy + " A" + rx + " " + ry + " 0 1 0 " + (cx + rx) + " " + cy +
+      " A" + rx + " " + ry + " 0 1 0 " + (cx - rx) + " " + cy + " Z";
+  }
+
+  var STICKERS = [
+    { id: "strawhat", label: "Straw hat", vw: 200, vh: 110, size: 0.5, shapes: [
+      { d: ell(100, 82, 96, 24), fill: "#e2b85c", stroke: "#8a5a17", lw: 4 },
+      { d: "M46 82 C46 32 62 12 100 12 C138 12 154 32 154 82 Z", fill: "#e8c36a", stroke: "#8a5a17", lw: 4 },
+      { d: "M47 62 C72 71 128 71 153 62 L154 82 C128 91 72 91 46 82 Z", fill: "#c0392b", stroke: "#7a1f17", lw: 3 },
+      { d: "M70 30 C80 24 92 22 104 22", stroke: "#f6dc9a", lw: 3 }
+    ]},
+    { id: "tricorn", label: "Captain's hat", vw: 200, vh: 112, size: 0.52, shapes: [
+      { d: "M8 94 C28 42 60 18 100 18 C140 18 172 42 192 94 C160 78 132 102 100 102 C68 102 40 78 8 94 Z", fill: "#1c1c1c", stroke: "#d6a94a", lw: 5 },
+      { d: ell(100, 56, 15, 14), fill: "#f2e6c8" },
+      { d: ell(94, 55, 3.4, 4) + " " + ell(106, 55, 3.4, 4), fill: "#1c1c1c" },
+      { d: "M78 80 L122 70 M78 70 L122 80", stroke: "#f2e6c8", lw: 5 }
+    ]},
+    { id: "eyepatch", label: "Eyepatch", vw: 240, vh: 90, size: 0.46, shapes: [
+      { d: "M2 34 C60 10 180 10 238 34", stroke: "#111111", lw: 6 },
+      { d: ell(152, 54, 34, 27), fill: "#111111" },
+      { d: "M132 44 C140 36 156 34 166 38", stroke: "#3a3a3a", lw: 3 }
+    ]},
+    { id: "mustache", label: "Mustache", vw: 200, vh: 60, size: 0.3, shapes: [
+      { d: "M100 20 C88 6 70 6 56 16 C44 26 30 32 14 24 C8 20 4 28 10 34 C26 48 56 46 74 36 C86 30 94 28 100 32 C106 28 114 30 126 36 C144 46 174 48 190 34 C196 28 192 20 186 24 C170 32 156 26 144 16 C130 6 112 6 100 20 Z", fill: "#1f140c" }
+    ]},
+    { id: "bandana", label: "Bandana", vw: 210, vh: 112, size: 0.52, shapes: [
+      { d: "M174 62 L204 92 L180 88 Z M170 66 L192 108 L166 92 Z", fill: "#b23a2e", stroke: "#6e1f17", lw: 3 },
+      { d: "M20 72 C20 30 56 8 100 8 C144 8 180 30 180 72 C150 60 50 60 20 72 Z", fill: "#b23a2e", stroke: "#6e1f17", lw: 4 },
+      { d: ell(60, 40, 5, 5) + " " + ell(92, 26, 5, 5) + " " + ell(128, 30, 5, 5) + " " + ell(152, 50, 5, 5) + " " + ell(104, 50, 5, 5) + " " + ell(44, 60, 4, 4), fill: "#fff2d9" }
+    ]},
+    { id: "swords", label: "Crossed swords", vw: 200, vh: 200, size: 0.42, shapes: [
+      { d: "M26 26 L140 140", stroke: "#d9dde3", lw: 12 },
+      { d: "M174 26 L60 140", stroke: "#d9dde3", lw: 12 },
+      { d: "M128 156 L156 128 M72 156 L44 128", stroke: "#d6a94a", lw: 12 },
+      { d: "M144 144 L178 178 M56 144 L22 178", stroke: "#4a2a14", lw: 15 }
+    ]},
+    { id: "fruit", label: "Devil Fruit", vw: 120, vh: 132, size: 0.2, shapes: [
+      { d: ell(60, 76, 50, 50), fill: "#7d3c98", stroke: "#4a1f5c", lw: 4 },
+      { d: "M34 70 C34 52 58 48 64 62 C68 72 56 78 50 70", stroke: "#e0b7f0", lw: 4 },
+      { d: "M62 100 C62 84 88 82 90 96 C92 106 80 110 76 102", stroke: "#e0b7f0", lw: 4 },
+      { d: "M84 58 C92 50 102 60 96 66", stroke: "#e0b7f0", lw: 4 },
+      { d: "M60 28 C58 18 62 10 68 6", stroke: "#3b6e2a", lw: 6 },
+      { d: "M63 20 C74 6 94 10 98 16 C86 24 74 26 63 20 Z", fill: "#4f9a3a" }
+    ]},
+    { id: "hoop", label: "Gold earring", vw: 60, vh: 70, size: 0.1, shapes: [
+      { d: ell(30, 40, 22, 24), stroke: "#d6a94a", lw: 7 },
+      { d: ell(30, 40, 22, 24), stroke: "#f6dc9a", lw: 2 }
+    ]}
+  ];
+  var STICKER_BY_ID = {};
+  STICKERS.forEach(function (s) { STICKER_BY_ID[s.id] = s; });
+
+  var SKULL = { vw: 100, vh: 100, shapes: [
+    { d: "M14 86 L86 50 M86 86 L14 50", stroke: "INK", lw: 9 },
+    { d: ell(50, 40, 25, 23), fill: "PAPER", stroke: "INK", lw: 5 },
+    { d: "M36 56 L36 68 L64 68 L64 56 Z", fill: "PAPER", stroke: "INK", lw: 5 },
+    { d: ell(41, 40, 6, 7) + " " + ell(59, 40, 6, 7), fill: "INK" },
+    { d: "M50 48 L46 56 L54 56 Z", fill: "INK" }
+  ]};
+
+  function stickerSvg(st) {
+    var parts = st.shapes.map(function (s) {
+      return '<path d="' + s.d + '" fill="' + (s.fill || "none") + '" stroke="' + (s.stroke || "none") +
+        '" stroke-width="' + (s.lw || 0) + '" stroke-linecap="round" stroke-linejoin="round"/>';
+    }).join("");
+    return '<svg viewBox="0 0 ' + st.vw + " " + st.vh + '" xmlns="http://www.w3.org/2000/svg">' + parts + "</svg>";
+  }
+
+  function drawArt(ctx, art, cx, cy, w, rot, colorMap) {
+    var h = w * art.vh / art.vw;
+    var k = w / art.vw;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(rot || 0);
+    ctx.translate(-w / 2, -h / 2);
+    ctx.scale(k, k);
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    art.shapes.forEach(function (s) {
+      var p = new Path2D(s.d);
+      var fill = s.fill, stroke = s.stroke;
+      if (colorMap) { if (colorMap[fill]) fill = colorMap[fill]; if (colorMap[stroke]) stroke = colorMap[stroke]; }
+      if (fill) { ctx.fillStyle = fill; ctx.fill(p); }
+      if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = s.lw; ctx.stroke(p); }
+    });
+    ctx.restore();
+  }
+
+  // =========================================================
+  // Elements & state
+  // =========================================================
+  var $ = function (id) { return document.getElementById(id); };
+  var stage = $("stage"), video = $("video"), layer = $("stickerLayer");
+  var countdownEl = $("countdown"), flashEl = $("flash");
+  var startOverlay = $("startOverlay"), startBtn = $("startBtn"), startMsg = $("startMsg");
+  var shootBtn = $("shootBtn");
+
+  var mode = "wanted";
+  var facing = "user";
+  var stream = null;
+  var placed = [];      // {uid, type, x, y, w, rot, el}
+  var selectedUid = null;
+  var uidCounter = 0;
+  var busy = false;
+  var lastColorCanvas = null, lastPrintCanvas = null;
+
+  // =========================================================
+  // Camera
+  // =========================================================
+  function startCamera() {
+    startMsg.textContent = "";
+    if (!window.isSecureContext) {
+      startMsg.textContent = "The camera only works from your https link (your GitHub Pages address), not from a downloaded file.";
+      return;
+    }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      startMsg.textContent = "This browser can't open the camera. Open the page in Safari.";
+      return;
+    }
+    stopCamera();
+    navigator.mediaDevices.getUserMedia({
+      video: { facingMode: facing, width: { ideal: 1920 }, height: { ideal: 1440 } },
+      audio: false
+    }).then(function (s) {
+      stream = s;
+      video.srcObject = s;
+      video.classList.toggle("mirror", facing === "user");
+      var p = video.play();
+      if (p && p.catch) p.catch(function () {});
+      startOverlay.style.display = "none";
+      shootBtn.disabled = false;
+      requestWakeLock();
+    }).catch(function (err) {
+      var name = err && err.name;
+      if (name === "NotAllowedError") {
+        startMsg.textContent = "Camera access was blocked. On the iPad go to Settings \u2192 Apps \u2192 Safari \u2192 Camera \u2192 Allow, then reload this page.";
+      } else if (name === "NotFoundError" || name === "OverconstrainedError") {
+        startMsg.textContent = "No camera found for that direction. Try Flip camera.";
+      } else {
+        startMsg.textContent = "The camera couldn't start. Reload the page and try again.";
+      }
+      startOverlay.style.display = "flex";
+    });
+  }
+  function stopCamera() {
+    if (stream) { stream.getTracks().forEach(function (t) { t.stop(); }); stream = null; }
+  }
+  var wakeLock = null;
+  function requestWakeLock() {
+    try {
+      if (navigator.wakeLock && !wakeLock) {
+        navigator.wakeLock.request("screen").then(function (l) {
+          wakeLock = l;
+          l.addEventListener("release", function () { wakeLock = null; });
+        }).catch(function () {});
+      }
+    } catch (e) {}
+  }
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "visible" && stream) requestWakeLock();
+  });
+
+  startBtn.addEventListener("click", startCamera);
+  $("flipBtn").addEventListener("click", function () {
+    facing = facing === "user" ? "environment" : "user";
+    if (stream) startCamera();
+  });
+
+  // =========================================================
+  // Mode
+  // =========================================================
+  function setMode(m) {
+    mode = m;
+    $("modeWanted").classList.toggle("on", m === "wanted");
+    $("modeFrame").classList.toggle("on", m === "frame");
+    $("wantedFields").style.display = m === "wanted" ? "block" : "none";
+    stage.classList.toggle("mode-frame", m === "frame");
+    if (m === "wanted") {
+      $("stageLabel").textContent = "Wanted";
+      $("stageSub").textContent = "Dead or alive";
+    } else {
+      $("stageLabel").textContent = settings.caption1 || "Pirate Booth";
+      $("stageSub").textContent = settings.caption2 || "";
+    }
+  }
+  $("modeWanted").addEventListener("click", function () { setMode("wanted"); });
+  $("modeFrame").addEventListener("click", function () { setMode("frame"); });
+
+  // =========================================================
+  // Bounty
+  // =========================================================
+  function randomBounty() {
+    var picks = [
+      function () { return (Math.floor(Math.random() * 90) + 10) * 1000000; },
+      function () { return (Math.floor(Math.random() * 90) + 10) * 10000000; },
+      function () { return (Math.floor(Math.random() * 30) + 1) * 100000000; }
+    ];
+    var n = picks[Math.floor(Math.random() * picks.length)]();
+    return n.toLocaleString("en-US");
+  }
+  $("posterBounty").value = randomBounty();
+  $("rerollBtn").addEventListener("click", function () { $("posterBounty").value = randomBounty(); });
+
+  // =========================================================
+  // Stickers: tray, placement, gestures
+  // =========================================================
+  var tray = $("tray");
+  STICKERS.forEach(function (st) {
+    var b = document.createElement("button");
+    b.setAttribute("aria-label", "Add " + st.label);
+    b.innerHTML = stickerSvg(st);
+    b.addEventListener("click", function () { addSticker(st.id); });
+    tray.appendChild(b);
+  });
+
+  var DEFAULT_Y = { strawhat: 0.2, tricorn: 0.2, bandana: 0.22, eyepatch: 0.42, mustache: 0.6, swords: 0.8, fruit: 0.78, hoop: 0.55 };
+  var DEFAULT_X = { fruit: 0.8, hoop: 0.28, swords: 0.5 };
+
+  function addSticker(type) {
+    var st = STICKER_BY_ID[type];
+    var s = {
+      uid: ++uidCounter, type: type,
+      x: DEFAULT_X[type] !== undefined ? DEFAULT_X[type] : 0.5,
+      y: DEFAULT_Y[type] !== undefined ? DEFAULT_Y[type] : 0.5,
+      w: st.size, rot: 0, el: null
+    };
+    var el = document.createElement("div");
+    el.className = "sticker";
+    el.dataset.uid = String(s.uid);
+    el.innerHTML = stickerSvg(st) + '<div class="del" role="button" aria-label="Remove">\u2715</div>';
+    s.el = el;
+    layer.appendChild(el);
+    placed.push(s);
+    select(s.uid);
+    positionSticker(s);
+  }
+
+  function positionSticker(s) {
+    s.el.style.left = (s.x * 100) + "%";
+    s.el.style.top = (s.y * 100) + "%";
+    s.el.style.width = (s.w * 100) + "%";
+    s.el.style.transform = "translate(-50%, -50%) rotate(" + s.rot + "rad)";
+  }
+
+  function select(uid) {
+    selectedUid = uid;
+    placed.forEach(function (s) { s.el.classList.toggle("selected", s.uid === uid); });
+  }
+
+  function removeSticker(uid) {
+    placed = placed.filter(function (s) {
+      if (s.uid === uid) { s.el.remove(); return false; }
+      return true;
+    });
+    if (selectedUid === uid) selectedUid = null;
+  }
+
+  $("clearStickers").addEventListener("click", function () {
+    placed.forEach(function (s) { s.el.remove(); });
+    placed = [];
+    selectedUid = null;
+  });
+
+  function findSticker(uid) {
+    for (var i = 0; i < placed.length; i++) if (placed[i].uid === uid) return placed[i];
+    return null;
+  }
+
+  var pointers = new Map();
+  var gesture = null;
+
+  function beginGesture() {
+    var s = findSticker(selectedUid);
+    if (!s) { gesture = null; return; }
+    var pts = Array.from(pointers.values());
+    var rect = stage.getBoundingClientRect();
+    if (pts.length >= 2) {
+      var a = pts[0], b = pts[1];
+      gesture = {
+        kind: "pinch", s: s,
+        dist: Math.hypot(b.x - a.x, b.y - a.y) || 1,
+        ang: Math.atan2(b.y - a.y, b.x - a.x),
+        w: s.w, rot: s.rot
+      };
+    } else if (pts.length === 1) {
+      gesture = { kind: "drag", s: s, px: pts[0].x, py: pts[0].y, x: s.x, y: s.y, rw: rect.width, rh: rect.height };
+    } else {
+      gesture = null;
+    }
+  }
+
+  stage.addEventListener("pointerdown", function (e) {
+    if (startOverlay.style.display !== "none" || busy) return;
+    var delBtn = e.target.closest && e.target.closest(".del");
+    if (delBtn) {
+      var el = delBtn.parentNode;
+      removeSticker(Number(el.dataset.uid));
+      e.preventDefault();
+      return;
+    }
+    var hit = e.target.closest && e.target.closest(".sticker");
+    if (pointers.size === 0) {
+      if (hit) select(Number(hit.dataset.uid));
+      else { select(null); return; }
+    }
+    try { stage.setPointerCapture(e.pointerId); } catch (err) {}
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    beginGesture();
+    e.preventDefault();
+  });
+
+  stage.addEventListener("pointermove", function (e) {
+    if (!pointers.has(e.pointerId)) return;
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (!gesture) return;
+    var s = gesture.s;
+    if (gesture.kind === "drag" && pointers.size === 1) {
+      s.x = Math.min(1.1, Math.max(-0.1, gesture.x + (e.clientX - gesture.px) / gesture.rw));
+      s.y = Math.min(1.1, Math.max(-0.1, gesture.y + (e.clientY - gesture.py) / gesture.rh));
+      positionSticker(s);
+    } else if (gesture.kind === "pinch" && pointers.size >= 2) {
+      var pts = Array.from(pointers.values());
+      var a = pts[0], b = pts[1];
+      var dist = Math.hypot(b.x - a.x, b.y - a.y);
+      var ang = Math.atan2(b.y - a.y, b.x - a.x);
+      s.w = Math.min(1.6, Math.max(0.05, gesture.w * dist / gesture.dist));
+      s.rot = gesture.rot + (ang - gesture.ang);
+      positionSticker(s);
+    }
+  });
+
+  function endPointer(e) {
+    if (!pointers.has(e.pointerId)) return;
+    pointers.delete(e.pointerId);
+    beginGesture();
+  }
+  stage.addEventListener("pointerup", endPointer);
+  stage.addEventListener("pointercancel", endPointer);
+
+  // =========================================================
+  // Capture
+  // =========================================================
+  function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+  function loadFonts() {
+    if (!document.fonts || !document.fonts.load) return Promise.resolve();
+    return Promise.all([
+      document.fonts.load('100px "Pirata One"'),
+      document.fonts.load('700 100px "Cinzel"'),
+      document.fonts.load('italic 60px "Lora"')
+    ]).catch(function () {});
+  }
+
+  shootBtn.addEventListener("click", function () {
+    if (!stream || busy) return;
+    if (!video.videoWidth) return;
+    busy = true;
+    shootBtn.disabled = true;
+    select(null);
+
+    var seq = Promise.resolve();
+    [3, 2, 1].forEach(function (n) {
+      seq = seq.then(function () {
+        countdownEl.textContent = n;
+        countdownEl.classList.add("show");
+        return wait(850);
+      });
+    });
+    seq.then(function () {
+      countdownEl.classList.remove("show");
+      var frozen = freezeFrame();
+      flashEl.classList.add("on");
+      setTimeout(function () { flashEl.classList.remove("on"); }, 60);
+      return loadFonts().then(function () { return frozen; });
+    }).then(function (frozen) {
+      var data = {
+        mode: mode,
+        name: $("posterName").value.trim(),
+        bounty: $("posterBounty").value.trim(),
+        caption1: settings.caption1,
+        caption2: settings.caption2,
+        mirror: facing === "user",
+        stickers: placed.map(function (s) { return { type: s.type, x: s.x, y: s.y, w: s.w, rot: s.rot }; })
+      };
+      lastColorCanvas = composeColor(frozen, data);
+      lastPrintCanvas = composePrint(frozen, data);
+      showResult();
+    }).catch(function (err) {
+      console.warn(err);
+    }).then(function () {
+      busy = false;
+      shootBtn.disabled = !stream;
+    });
+  });
+
+  function freezeFrame() {
+    var c = document.createElement("canvas");
+    c.width = video.videoWidth;
+    c.height = video.videoHeight;
+    c.getContext("2d").drawImage(video, 0, 0, c.width, c.height);
+    return c;
+  }
+
+  // Draws the camera frame (cover-cropped exactly like the preview) plus stickers into a box.
+  function drawPhoto(ctx, frozen, bx, by, bw, bh, data) {
+    var fw = frozen.width, fh = frozen.height;
+    var a = bw / bh, sa = fw / fh;
+    var sx, sy, sw, sh;
+    if (sa > a) { sh = fh; sw = fh * a; sx = (fw - sw) / 2; sy = 0; }
+    else { sw = fw; sh = fw / a; sx = 0; sy = (fh - sh) / 2; }
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(bx, by, bw, bh);
+    ctx.clip();
+    if (data.mirror) {
+      ctx.translate(bx + bw, by);
+      ctx.scale(-1, 1);
+      ctx.drawImage(frozen, sx, sy, sw, sh, 0, 0, bw, bh);
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+    } else {
+      ctx.drawImage(frozen, sx, sy, sw, sh, bx, by, bw, bh);
+    }
+    ctx.restore();
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(bx, by, bw, bh);
+    ctx.clip();
+    data.stickers.forEach(function (s) {
+      drawArt(ctx, STICKER_BY_ID[s.type], bx + s.x * bw, by + s.y * bh, s.w * bw, s.rot);
+    });
+    ctx.restore();
+  }
+
+  // ---------- layout (designed on a 1200 x 1800 = 4x6 grid) ----------
+  var LAYOUT = {
+    wanted: { box: [150, 330, 900, 1000] },
+    frame: { box: [90, 90, 1020, 1133] }
+  };
+
+  function fitFont(ctx, text, maxW, size, tpl, minSize) {
+    var s = size;
+    ctx.font = tpl.replace("SIZE", s);
+    while (ctx.measureText(text).width > maxW && s > (minSize || 20)) {
+      s -= 4;
+      ctx.font = tpl.replace("SIZE", s);
+    }
+    return s;
+  }
+
+  function spacedText(ctx, text, cx, y, spacing) {
+    var chars = text.split("");
+    var widths = chars.map(function (ch) { return ctx.measureText(ch).width; });
+    var total = widths.reduce(function (a, b) { return a + b; }, 0) + spacing * (chars.length - 1);
+    var x = cx - total / 2;
+    ctx.textAlign = "left";
+    chars.forEach(function (ch, i) { ctx.fillText(ch, x, y); x += widths[i] + spacing; });
+    ctx.textAlign = "center";
+  }
+
+  var PIRATA = '"Pirata One", Georgia, serif';
+  var CINZEL = '"Cinzel", Georgia, serif';
+  var LORA = '"Lora", Georgia, serif';
+
+  function drawLayout(ctx, data, pal, photoCanvas) {
+    var L = LAYOUT[data.mode];
+    var b = L.box;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "alphabetic";
+
+    // background
+    if (pal.bg === "parchment") {
+      var g = ctx.createRadialGradient(560, 700, 100, 600, 900, 1150);
+      g.addColorStop(0, "#f4e6c2");
+      g.addColorStop(0.6, "#e6cf9c");
+      g.addColorStop(1, "#c9a86e");
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, 1200, 1800);
+      // light aged speckle
+      var seed = 7;
+      function rnd() { seed = (seed * 16807) % 2147483647; return seed / 2147483647; }
+      for (var i = 0; i < 900; i++) {
+        ctx.fillStyle = "rgba(110,70,25," + (0.03 + rnd() * 0.07) + ")";
+        ctx.beginPath();
+        ctx.arc(rnd() * 1200, rnd() * 1800, 1 + rnd() * 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else if (pal.bg === "wood") {
+      var g2 = ctx.createLinearGradient(0, 0, 0, 1800);
+      g2.addColorStop(0, "#2e1b0d");
+      g2.addColorStop(1, "#1a0f07");
+      ctx.fillStyle = g2;
+      ctx.fillRect(0, 0, 1200, 1800);
+    } else {
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, 1200, 1800);
+    }
+
+    // borders
+    ctx.strokeStyle = pal.line;
+    ctx.lineWidth = 10;
+    ctx.strokeRect(38, 38, 1124, 1724);
+    ctx.lineWidth = 3;
+    ctx.strokeRect(60, 60, 1080, 1680);
+
+    // photo
+    ctx.drawImage(photoCanvas, b[0], b[1], b[2], b[3]);
+    ctx.lineWidth = 8;
+    ctx.strokeStyle = pal.line;
+    ctx.strokeRect(b[0], b[1], b[2], b[3]);
+
+    ctx.fillStyle = pal.ink;
+    if (data.mode === "wanted") {
+      fitFont(ctx, "WANTED", 1000, 270, "SIZEpx " + PIRATA);
+      ctx.fillText("WANTED", 600, 300);
+
+      ctx.font = "700 76px " + CINZEL;
+      spacedText(ctx, "DEAD OR ALIVE", 600, 1440, 10);
+
+      var name = (data.name || "Unknown Pirate").toUpperCase();
+      fitFont(ctx, name, 980, 150, "SIZEpx " + PIRATA, 40);
+      ctx.fillText(name, 600, 1590);
+
+      var bounty = "\u0e3f " + (data.bounty || "???") + " -";
+      fitFont(ctx, bounty, 980, 100, "700 SIZEpx " + CINZEL, 40);
+      ctx.fillText(bounty, 600, 1710);
+    } else {
+      var c1 = data.caption1 || "";
+      if (c1) {
+        fitFont(ctx, c1, 1000, 140, "SIZEpx " + PIRATA, 40);
+        ctx.fillText(c1, 600, 1370);
+      }
+      var c2 = data.caption2 || "";
+      if (c2) {
+        fitFont(ctx, c2, 1000, 62, "italic SIZEpx " + LORA, 28);
+        ctx.fillText(c2, 600, 1470);
+      }
+      // skull emblem with rules on each side
+      ctx.strokeStyle = pal.line;
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(200, 1605); ctx.lineTo(510, 1605);
+      ctx.moveTo(690, 1605); ctx.lineTo(1000, 1605);
+      ctx.stroke();
+      drawArt(ctx, SKULL, 600, 1600, 150, 0, { INK: pal.ink, PAPER: pal.paper });
+    }
+  }
+
+  function composeColor(frozen, data) {
+    var W = 1200, H = 1800;
+    var c = document.createElement("canvas");
+    c.width = W; c.height = H;
+    var ctx = c.getContext("2d");
+    var b = LAYOUT[data.mode].box;
+    var photo = document.createElement("canvas");
+    photo.width = b[2]; photo.height = b[3];
+    drawPhoto(photo.getContext("2d"), frozen, 0, 0, b[2], b[3], data);
+    var pal = data.mode === "wanted"
+      ? { bg: "parchment", ink: "#3a2412", line: "#4a2e16", paper: "#f2e6c8" }
+      : { bg: "wood", ink: "#e9c878", line: "#d6a94a", paper: "#2a190c" };
+    drawLayout(ctx, data, pal, photo);
+    return c;
+  }
+
+  // Rollo = 203 dpi thermal, black only: 4x6 in = 812 x 1218 dots.
+  function composePrint(frozen, data) {
+    var W = 812, H = 1218, k = W / 1200;
+    var c = document.createElement("canvas");
+    c.width = W; c.height = H;
+    var ctx = c.getContext("2d");
+    var b = LAYOUT[data.mode].box;
+    var pw = Math.round(b[2] * k), ph = Math.round(b[3] * k);
+    var photo = document.createElement("canvas");
+    photo.width = pw; photo.height = ph;
+    drawPhoto(photo.getContext("2d"), frozen, 0, 0, pw, ph, data);
+    ditherCanvas(photo, settings.darkness || 0);
+    ctx.save();
+    ctx.scale(k, k);
+    ctx.imageSmoothingEnabled = false;
+    drawLayout(ctx, data, { bg: "white", ink: "#000000", line: "#000000", paper: "#ffffff" }, photo);
+    ctx.restore();
+    threshold(c);
+    return c;
+  }
+
+  // Auto-levels + Floyd-Steinberg dithering: turns a photo into pure black dots
+  // that a thermal printer reproduces cleanly.
+  function ditherCanvas(canvas, darkness) {
+    var ctx = canvas.getContext("2d");
+    var w = canvas.width, h = canvas.height;
+    var im = ctx.getImageData(0, 0, w, h);
+    var d = im.data, n = w * h;
+    var g = new Float32Array(n);
+    var hist = new Uint32Array(256);
+    for (var i = 0; i < n; i++) {
+      var v = 0.299 * d[i * 4] + 0.587 * d[i * 4 + 1] + 0.114 * d[i * 4 + 2];
+      g[i] = v;
+      hist[v | 0]++;
+    }
+    function pct(p) {
+      var target = n * p, acc = 0;
+      for (var j = 0; j < 256; j++) { acc += hist[j]; if (acc >= target) return j; }
+      return 255;
+    }
+    var lo = pct(0.02), hi = pct(0.98);
+    if (hi - lo < 30) { lo = 0; hi = 255; }
+    var shift = -darkness * 1.6;
+    for (i = 0; i < n; i++) {
+      var s = (g[i] - lo) * 255 / (hi - lo);
+      s = 255 * Math.pow(Math.min(1, Math.max(0, s / 255)), 0.9) + shift;
+      g[i] = s;
+    }
+    for (var y = 0; y < h; y++) {
+      for (var x = 0; x < w; x++) {
+        var idx = y * w + x;
+        var old = g[idx];
+        var nv = old < 128 ? 0 : 255;
+        var err = old - nv;
+        g[idx] = nv;
+        if (x + 1 < w) g[idx + 1] += err * 7 / 16;
+        if (y + 1 < h) {
+          if (x > 0) g[idx + w - 1] += err * 3 / 16;
+          g[idx + w] += err * 5 / 16;
+          if (x + 1 < w) g[idx + w + 1] += err * 1 / 16;
+        }
+      }
+    }
+    for (i = 0; i < n; i++) {
+      var o = g[i] < 128 ? 0 : 255;
+      d[i * 4] = d[i * 4 + 1] = d[i * 4 + 2] = o;
+      d[i * 4 + 3] = 255;
+    }
+    ctx.putImageData(im, 0, 0);
+  }
+
+  // Snap antialiased text edges to pure black/white.
+  function threshold(canvas) {
+    var ctx = canvas.getContext("2d");
+    var im = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    var d = im.data;
+    for (var i = 0; i < d.length; i += 4) {
+      var v = (d[i] + d[i + 1] + d[i + 2]) / 3 < 150 ? 0 : 255;
+      d[i] = d[i + 1] = d[i + 2] = v;
+      d[i + 3] = 255;
+    }
+    ctx.putImageData(im, 0, 0);
+  }
+
+  // =========================================================
+  // Result: print / save / send
+  // =========================================================
+  var resultOverlay = $("resultOverlay"), resultImg = $("resultImg"), resultNote = $("resultNote");
+  var showingPrint = false;
+  var colorUrl = "", printUrl = "";
+
+  function showResult() {
+    colorUrl = lastColorCanvas.toDataURL("image/jpeg", 0.92);
+    printUrl = lastPrintCanvas.toDataURL("image/png");
+    showingPrint = false;
+    resultImg.src = colorUrl;
+    $("toggleViewBtn").textContent = "Show print version";
+    resultNote.textContent = "";
+    resultOverlay.classList.add("show");
+  }
+
+  $("toggleViewBtn").addEventListener("click", function () {
+    showingPrint = !showingPrint;
+    resultImg.src = showingPrint ? printUrl : colorUrl;
+    this.textContent = showingPrint ? "Show color version" : "Show print version";
+  });
+
+  $("printBtn").addEventListener("click", function () {
+    var img = $("printImg");
+    resultNote.textContent = "In the print screen, pick your Rollo and 4 x 6 paper.";
+    var go = function () { setTimeout(function () { window.print(); }, 50); };
+    if (img.src === printUrl && img.complete) { go(); return; }
+    img.onload = function () { img.onload = null; go(); };
+    img.src = printUrl;
+  });
+
+  function shareCanvas(canvas, filename, type, quality) {
+    return new Promise(function (resolve) {
+      canvas.toBlob(function (blob) {
+        if (!blob) { resolve(false); return; }
+        var file;
+        try { file = new File([blob], filename, { type: type }); } catch (e) { resolve(false); return; }
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          navigator.share({ files: [file] }).then(function () { resolve(true); })
+            .catch(function (err) { resolve(err && err.name === "AbortError" ? true : false); });
+        } else {
+          resolve(false);
+        }
+      }, type, quality);
+    });
+  }
+
+  $("saveBtn").addEventListener("click", function () {
+    shareCanvas(lastColorCanvas, "pirate-booth.jpg", "image/jpeg", 0.92).then(function (ok) {
+      if (!ok) {
+        resultImg.src = colorUrl;
+        showingPrint = false;
+        $("toggleViewBtn").textContent = "Show print version";
+        resultNote.textContent = "Press and hold the photo, then tap Save to Photos.";
+      } else {
+        resultNote.textContent = "Choose Save Image to keep it in Photos.";
+      }
+    });
+  });
+
+  $("sendPrintBtn").addEventListener("click", function () {
+    shareCanvas(lastPrintCanvas, "pirate-booth-print-4x6.png", "image/png").then(function (ok) {
+      if (!ok) {
+        resultImg.src = printUrl;
+        showingPrint = true;
+        $("toggleViewBtn").textContent = "Show color version";
+        resultNote.textContent = "Press and hold the print version to share or save it.";
+      } else {
+        resultNote.textContent = "AirDrop it to the computer connected to the Rollo.";
+      }
+    });
+  });
+
+  $("doneBtn").addEventListener("click", function () {
+    resultOverlay.classList.remove("show");
+    $("posterBounty").value = randomBounty();
+  });
+
+  // =========================================================
+  // Settings
+  // =========================================================
+  var settingsOverlay = $("settingsOverlay");
+  $("settingsBtn").addEventListener("click", function () {
+    $("cap1").value = settings.caption1 || "";
+    $("cap2").value = settings.caption2 || "";
+    $("darkness").value = settings.darkness || 0;
+    settingsOverlay.classList.add("show");
+  });
+  $("settingsDone").addEventListener("click", function () {
+    settings.caption1 = $("cap1").value.trim();
+    settings.caption2 = $("cap2").value.trim();
+    settings.darkness = Number($("darkness").value) || 0;
+    saveSettings();
+    settingsOverlay.classList.remove("show");
+    setMode(mode);
+  });
+
+  // Exposed for testing layouts without a camera.
+  window.PirateBooth = {
+    renderTest: function (frozen, data) {
+      data = Object.assign({ mode: "wanted", name: "", bounty: "", caption1: settings.caption1, caption2: settings.caption2, mirror: false, stickers: [] }, data || {});
+      return { color: composeColor(frozen, data), print: composePrint(frozen, data) };
+    }
+  };
+
+  setMode("wanted");
+})();
+</script>
+</body>
+</html>
