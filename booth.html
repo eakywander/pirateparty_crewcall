@@ -81,6 +81,28 @@
     .stage { height: auto; width: min(94vw, calc((100vh - 360px) * 0.9)); min-width: 280px; }
   }
   .stage.mode-frame { border-color: var(--gold); }
+  .stage.mode-strip {
+    aspect-ratio: 13 / 11;
+    height: auto;
+    width: min(100%, calc((100vh - 150px) * 1.18), 1000px);
+    border-color: #9fb4c8;
+  }
+  @media (orientation: portrait), (max-width: 820px) {
+    .stage.mode-strip { width: min(94vw, calc((100vh - 360px) * 1.18)); }
+  }
+  #countdown small {
+    position: absolute; bottom: 18px; left: 0; right: 0; text-align: center;
+    font-family: 'Cinzel', serif; font-weight: 700; font-size: 20px; letter-spacing: 3px;
+  }
+  .seg.three { grid-template-columns: 1fr 1fr 1fr; }
+  .borders { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .borders button {
+    background: transparent; border: 2px solid rgba(216,193,145,0.3); border-radius: 10px;
+    padding: 6px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 5px;
+    color: #d8c191; font-family: 'Cinzel', serif; font-size: 11px;
+  }
+  .borders button.on { border-color: var(--gold-bright); background: rgba(214,169,74,0.12); }
+  .borders canvas { width: 32px; height: 96px; display: block; border-radius: 3px; }
   .stage video {
     position: absolute; inset: 0; width: 100%; height: 100%;
     object-fit: cover; background: #0d0804;
@@ -273,10 +295,16 @@
   <aside class="controls">
     <div class="group">
       <div class="group-title">Style</div>
-      <div class="seg">
-        <button id="modeWanted" class="on">Wanted poster</button>
-        <button id="modeFrame">Party frame</button>
+      <div class="seg three">
+        <button id="modeWanted" class="on">Wanted</button>
+        <button id="modeFrame">Frame</button>
+        <button id="modeStrip">Strip</button>
       </div>
+    </div>
+
+    <div class="group" id="borderGroup" style="display:none">
+      <div class="group-title">Strip border</div>
+      <div class="borders" id="borderPicker"></div>
     </div>
 
     <div class="group" id="wantedFields">
@@ -548,11 +576,17 @@
     mode = m;
     $("modeWanted").classList.toggle("on", m === "wanted");
     $("modeFrame").classList.toggle("on", m === "frame");
+    $("modeStrip").classList.toggle("on", m === "strip");
     $("bountyRow").style.display = m === "wanted" ? "flex" : "none";
+    $("borderGroup").style.display = m === "strip" ? "block" : "none";
     stage.classList.toggle("mode-frame", m === "frame");
+    stage.classList.toggle("mode-strip", m === "strip");
     if (m === "wanted") {
       $("stageLabel").textContent = "Wanted";
       $("stageSub").textContent = "Dead or alive";
+    } else if (m === "strip") {
+      $("stageLabel").textContent = "Photo Strip";
+      $("stageSub").textContent = "Three shots, back to back";
     } else {
       $("stageLabel").textContent = settings.caption1 || "Pirate Booth";
       $("stageSub").textContent = settings.caption2 || "";
@@ -560,6 +594,7 @@
   }
   $("modeWanted").addEventListener("click", function () { setMode("wanted"); });
   $("modeFrame").addEventListener("click", function () { setMode("frame"); });
+  $("modeStrip").addEventListener("click", function () { setMode("strip"); });
 
   // =========================================================
   // Bounty
@@ -726,6 +761,28 @@
     ]).catch(function () {});
   }
 
+  function snapStickers() {
+    return placed.map(function (s) { return { type: s.type, x: s.x, y: s.y, w: s.w, rot: s.rot }; });
+  }
+
+  function countdown(label) {
+    var seq = Promise.resolve();
+    [3, 2, 1].forEach(function (n) {
+      seq = seq.then(function () {
+        countdownEl.innerHTML = n + (label ? "<small>" + label + "</small>" : "");
+        countdownEl.classList.add("show");
+        return wait(850);
+      });
+    });
+    return seq.then(function () {
+      countdownEl.classList.remove("show");
+      var frozen = freezeFrame();
+      flashEl.classList.add("on");
+      setTimeout(function () { flashEl.classList.remove("on"); }, 60);
+      return frozen;
+    });
+  }
+
   shootBtn.addEventListener("click", function () {
     if (!stream || busy) return;
     if (!video.videoWidth) return;
@@ -733,33 +790,46 @@
     shootBtn.disabled = true;
     select(null);
 
-    var seq = Promise.resolve();
-    [3, 2, 1].forEach(function (n) {
-      seq = seq.then(function () {
-        countdownEl.textContent = n;
-        countdownEl.classList.add("show");
-        return wait(850);
+    var data = {
+      mode: mode,
+      name: $("posterName").value.trim(),
+      bounty: $("posterBounty").value.trim(),
+      caption1: settings.caption1,
+      caption2: settings.caption2,
+      mirror: facing === "user",
+      border: stripBorder,
+      stickers: [],
+      shots: []
+    };
+
+    var run;
+    if (mode === "strip") {
+      run = Promise.resolve();
+      [0, 1, 2].forEach(function (i) {
+        run = run.then(function () {
+          return countdown("Photo " + (i + 1) + " of 3").then(function (frozen) {
+            select(null);
+            data.shots.push({ frozen: frozen, stickers: snapStickers(), mirror: facing === "user" });
+            return wait(i < 2 ? 700 : 0);
+          });
+        });
       });
-    });
-    seq.then(function () {
-      countdownEl.classList.remove("show");
-      var frozen = freezeFrame();
-      flashEl.classList.add("on");
-      setTimeout(function () { flashEl.classList.remove("on"); }, 60);
-      return loadFonts().then(function () { return frozen; });
-    }).then(function (frozen) {
-      var data = {
-        mode: mode,
-        name: $("posterName").value.trim(),
-        bounty: $("posterBounty").value.trim(),
-        caption1: settings.caption1,
-        caption2: settings.caption2,
-        mirror: facing === "user",
-        stickers: placed.map(function (s) { return { type: s.type, x: s.x, y: s.y, w: s.w, rot: s.rot }; })
-      };
+    } else {
+      run = countdown("").then(function (frozen) {
+        data.stickers = snapStickers();
+        data.frozen = frozen;
+      });
+    }
+
+    run.then(loadFonts).then(function () {
       lastData = data;
-      lastColorCanvas = composeColor(frozen, data);
-      lastPrintCanvas = composePrint(frozen, data);
+      if (mode === "strip") {
+        lastColorCanvas = composeStripColor(data);
+        lastPrintCanvas = composeStripPrint(data);
+      } else {
+        lastColorCanvas = composeColor(data.frozen, data);
+        lastPrintCanvas = composePrint(data.frozen, data);
+      }
       showResult();
     }).catch(function (err) {
       console.warn(err);
@@ -932,6 +1002,254 @@
     }
   }
 
+  // =========================================================
+  // Photo strip (2 x 6 in). Layout units: 600 x 1800.
+  // Your own borders: strip-1.png, strip-2.png, strip-3.png
+  // (optional strip-N-overlay.png on top, strip-N-print.png for the Rollo).
+  // =========================================================
+  var STRIP = { w: 600, h: 1800, slots: [[40, 50, 520, 440], [40, 530, 520, 440], [40, 1010, 520, 440]] };
+  var stripBorder = 1;
+  var customBorders = { 1: {}, 2: {}, 3: {} };
+  var BORDER_NAMES = { 1: "Parchment", 2: "Captain's gold", 3: "High seas" };
+
+  function probeImage(base, exts) {
+    return new Promise(function (resolve) {
+      var i = 0;
+      var img = new Image();
+      img.onload = function () { resolve(img); };
+      img.onerror = function () {
+        i++;
+        if (i < exts.length) img.src = base + exts[i];
+        else resolve(null);
+      };
+      img.src = base + exts[0];
+    });
+  }
+
+  function loadCustomBorders() {
+    if (location.protocol === "file:") return Promise.resolve();
+    var exts = [".png", ".jpg", ".jpeg", ".webp", ".PNG", ".JPG"];
+    var jobs = [];
+    [1, 2, 3].forEach(function (n) {
+      ["", "-overlay", "-print"].forEach(function (suffix) {
+        jobs.push(probeImage("strip-" + n + suffix, exts).then(function (img) {
+          var key = suffix ? suffix.slice(1) : "bg";
+          if (img) customBorders[n][key] = img;
+        }));
+      });
+    });
+    return Promise.all(jobs);
+  }
+
+  function stripPalette(n, bw) {
+    if (bw) return { bg: "white", ink: "#000000", line: "#000000", paper: "#ffffff", deco: n };
+    if (n === 2) return { bg: "wood", ink: "#e9c878", line: "#d6a94a", paper: "#2a190c", deco: 2 };
+    if (n === 3) return { bg: "sea", ink: "#f2e6c8", line: "#e9d8b4", paper: "#12283f", deco: 3 };
+    return { bg: "parchment", ink: "#3a2412", line: "#4a2e16", paper: "#f2e6c8", deco: 1 };
+  }
+
+  function drawStripBackground(ctx, pal) {
+    if (pal.bg === "parchment") {
+      var g = ctx.createRadialGradient(290, 800, 60, 300, 900, 1000);
+      g.addColorStop(0, "#f4e6c2"); g.addColorStop(0.6, "#e6cf9c"); g.addColorStop(1, "#c9a86e");
+      ctx.fillStyle = g;
+    } else if (pal.bg === "wood") {
+      var g2 = ctx.createLinearGradient(0, 0, 0, 1800);
+      g2.addColorStop(0, "#2e1b0d"); g2.addColorStop(1, "#1a0f07");
+      ctx.fillStyle = g2;
+    } else if (pal.bg === "sea") {
+      var g3 = ctx.createLinearGradient(0, 0, 0, 1800);
+      g3.addColorStop(0, "#1c3d5e"); g3.addColorStop(1, "#0b1a2b");
+      ctx.fillStyle = g3;
+    } else {
+      ctx.fillStyle = "#ffffff";
+    }
+    ctx.fillRect(0, 0, STRIP.w, STRIP.h);
+    ctx.strokeStyle = pal.line;
+    ctx.lineWidth = 6;
+    ctx.strokeRect(14, 14, 572, 1772);
+    ctx.lineWidth = 2;
+    ctx.strokeRect(26, 26, 548, 1748);
+  }
+
+  function drawStripDecor(ctx, pal, data) {
+    ctx.strokeStyle = pal.line;
+    STRIP.slots.forEach(function (sl) {
+      ctx.lineWidth = 5;
+      ctx.strokeRect(sl[0], sl[1], sl[2], sl[3]);
+    });
+    ctx.fillStyle = pal.ink;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "alphabetic";
+    var c1 = data.caption1 || "", c2 = data.caption2 || "";
+    if (c1) { fitFont(ctx, c1, 510, 74, "SIZEpx " + PIRATA, 28); ctx.fillText(c1, 300, 1545); }
+    if (c2) { fitFont(ctx, c2, 510, 34, "italic SIZEpx " + LORA, 18); ctx.fillText(c2, 300, 1598); }
+
+    if (pal.deco === 3) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(34, 1640, 532, 130);
+      ctx.clip();
+      ctx.lineWidth = 5;
+      ctx.lineCap = "round";
+      [1668, 1706, 1744].forEach(function (y, row) {
+        ctx.beginPath();
+        for (var x = 60; x <= 540; x += 60) {
+          var off = row % 2 ? 30 : 0;
+          ctx.moveTo(x - 30 + off, y);
+          ctx.quadraticCurveTo(x + off, y - 18, x + 30 + off, y);
+        }
+        ctx.stroke();
+      });
+      ctx.restore();
+    } else {
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(90, 1690); ctx.lineTo(240, 1690);
+      ctx.moveTo(360, 1690); ctx.lineTo(510, 1690);
+      if (pal.deco === 2) {
+        ctx.moveTo(90, 1702); ctx.lineTo(240, 1702);
+        ctx.moveTo(360, 1702); ctx.lineTo(510, 1702);
+      }
+      ctx.stroke();
+      drawArt(ctx, SKULL, 300, 1692, 96, 0, { INK: pal.ink, PAPER: pal.paper });
+      if (pal.deco === 2) {
+        [[46, 46], [554, 46], [46, 1754], [554, 1754]].forEach(function (pt) {
+          ctx.save();
+          ctx.translate(pt[0], pt[1]);
+          ctx.rotate(Math.PI / 4);
+          ctx.fillStyle = pal.line;
+          ctx.fillRect(-9, -9, 18, 18);
+          ctx.restore();
+        });
+      }
+    }
+  }
+
+  // Draws a whole strip in 600x1800 units. photos = 3 canvases (or null for placeholders).
+  function drawStrip(ctx, data, photos, opts) {
+    var n = data.border || 1;
+    var custom = customBorders[n] || {};
+    var pal = stripPalette(n, opts.bw);
+    var useCustom = !!custom.bg;
+
+    if (opts.bw && custom.print) {
+      ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, 600, 1800);
+      ctx.drawImage(custom.print, 0, 0, 600, 1800);
+    } else if (useCustom) {
+      ctx.drawImage(custom.bg, 0, 0, 600, 1800);
+    } else {
+      drawStripBackground(ctx, pal);
+    }
+
+    STRIP.slots.forEach(function (sl, i) {
+      if (photos && photos[i]) {
+        ctx.drawImage(photos[i], sl[0], sl[1], sl[2], sl[3]);
+      } else {
+        ctx.fillStyle = opts.bw ? "#bbbbbb" : "rgba(128,128,128,0.55)";
+        ctx.fillRect(sl[0], sl[1], sl[2], sl[3]);
+      }
+    });
+
+    if (!useCustom && !(opts.bw && custom.print)) drawStripDecor(ctx, pal, data);
+    if (custom.overlay && !(opts.bw && custom.print)) ctx.drawImage(custom.overlay, 0, 0, 600, 1800);
+  }
+
+  function shotCanvas(shot, w, h) {
+    var c = document.createElement("canvas");
+    c.width = w; c.height = h;
+    drawPhoto(c.getContext("2d"), shot.frozen, 0, 0, w, h, shot);
+    return c;
+  }
+
+  function composeStripColor(data) {
+    var W = 1200, H = 3600, k = W / 600;
+    var c = document.createElement("canvas");
+    c.width = W; c.height = H;
+    var ctx = c.getContext("2d");
+    var photos = data.shots.map(function (shot, i) {
+      var sl = STRIP.slots[i];
+      return shotCanvas(shot, Math.round(sl[2] * k), Math.round(sl[3] * k));
+    });
+    ctx.save();
+    ctx.scale(k, k);
+    drawStrip(ctx, data, photos, { bw: false });
+    ctx.restore();
+    return c;
+  }
+
+  // Two identical 2x6 strips side by side on one 4x6 Rollo label (812 x 1218 dots).
+  function composeStripPrint(data) {
+    var HW = 406, H = 1218, k = HW / 600;
+    var custom = customBorders[data.border || 1] || {};
+    var half = document.createElement("canvas");
+    half.width = HW; half.height = H;
+    var hctx = half.getContext("2d");
+
+    if (custom.bg && !custom.print) {
+      // Custom color border with no print version: convert the whole strip to dots.
+      var photosC = data.shots.map(function (shot, i) {
+        var sl = STRIP.slots[i];
+        return shotCanvas(shot, Math.round(sl[2] * k), Math.round(sl[3] * k));
+      });
+      hctx.save(); hctx.scale(k, k);
+      drawStrip(hctx, data, photosC, { bw: false });
+      hctx.restore();
+      try { ditherCanvas(half, settings.darkness || 0); } catch (e) {}
+    } else {
+      var photosB = data.shots.map(function (shot, i) {
+        var sl = STRIP.slots[i];
+        var pc = shotCanvas(shot, Math.round(sl[2] * k), Math.round(sl[3] * k));
+        ditherCanvas(pc, settings.darkness || 0);
+        return pc;
+      });
+      hctx.save(); hctx.scale(k, k);
+      hctx.imageSmoothingEnabled = false;
+      drawStrip(hctx, data, photosB, { bw: true });
+      hctx.restore();
+      try { threshold(half); } catch (e) {}
+    }
+
+    var c = document.createElement("canvas");
+    c.width = 812; c.height = H;
+    var ctx = c.getContext("2d");
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, 812, H);
+    ctx.drawImage(half, 0, 0);
+    ctx.drawImage(half, 406, 0);
+    // cut marks at the top and bottom edges
+    ctx.fillStyle = "#000";
+    ctx.fillRect(405, 0, 2, 10);
+    ctx.fillRect(405, H - 10, 2, 10);
+    return c;
+  }
+
+  // ---------- border picker ----------
+  function renderBorderPicker() {
+    var picker = $("borderPicker");
+    picker.innerHTML = "";
+    [1, 2, 3].forEach(function (n) {
+      var b = document.createElement("button");
+      b.className = n === stripBorder ? "on" : "";
+      var cv = document.createElement("canvas");
+      cv.width = 120; cv.height = 360;
+      var ctx = cv.getContext("2d");
+      ctx.save();
+      ctx.scale(0.2, 0.2);
+      drawStrip(ctx, { border: n, caption1: settings.caption1, caption2: settings.caption2 }, null, { bw: false });
+      ctx.restore();
+      b.appendChild(cv);
+      var label = document.createElement("span");
+      label.textContent = customBorders[n].bg ? "Border " + n : BORDER_NAMES[n];
+      b.appendChild(label);
+      b.addEventListener("click", function () {
+        stripBorder = n;
+        renderBorderPicker();
+      });
+      picker.appendChild(b);
+    });
+  }
+
   function composeColor(frozen, data) {
     var W = 1200, H = 1800;
     var c = document.createElement("canvas");
@@ -1046,12 +1364,13 @@
   }
   function fileBase(data) {
     var who = slug(data.name) || "pirate";
-    var kind = data.mode === "wanted" ? "wanted" : "party";
+    var kind = data.mode === "wanted" ? "wanted" : (data.mode === "strip" ? "strip" : "party");
     return kind + "-" + who + "-" + stamp();
   }
   function describe(data) {
     var who = data.name || "Unknown pirate";
     if (data.mode === "wanted") return "WANTED: " + who + ". Bounty \u0e3f" + (data.bounty || "???");
+    if (data.mode === "strip") return who + ". Photo strip. " + [data.caption1, data.caption2].filter(Boolean).join(", ");
     return who + ". " + [data.caption1, data.caption2].filter(Boolean).join(", ");
   }
 
@@ -1133,7 +1452,7 @@
       if (b[0] !== 0xff || b[1] !== 0xd8) return blob;
       var insertAt = 2;
       if (b[2] === 0xff && b[3] === 0xe0) insertAt = 4 + ((b[4] << 8) | b[5]); // after JFIF header
-      var title = data.name || (data.mode === "wanted" ? "Wanted poster" : "Pirate Booth");
+      var title = data.name || (data.mode === "wanted" ? "Wanted poster" : (data.mode === "strip" ? "Photo strip" : "Pirate Booth"));
       var tagged = concatBytes([
         b.subarray(0, insertAt),
         buildExif(describe(data), data.name),
@@ -1253,6 +1572,7 @@
     saveSettings();
     settingsOverlay.classList.remove("show");
     setMode(mode);
+    renderBorderPicker();
   });
 
   // Exposed for testing layouts without a camera.
@@ -1262,6 +1582,11 @@
         .then(function (t) { return t.arrayBuffer(); })
         .then(function (buf) { return { name: fileBase(data) + ".jpg", bytes: Array.from(new Uint8Array(buf)) }; });
     },
+    stripTest: function (frozen, data) {
+      data = Object.assign({ mode: "strip", name: "", caption1: settings.caption1, caption2: settings.caption2, border: 1 }, data || {});
+      data.shots = [0, 1, 2].map(function () { return { frozen: frozen, stickers: data.stickers || [], mirror: false }; });
+      return { color: composeStripColor(data), print: composeStripPrint(data) };
+    },
     renderTest: function (frozen, data) {
       data = Object.assign({ mode: "wanted", name: "", bounty: "", caption1: settings.caption1, caption2: settings.caption2, mirror: false, stickers: [] }, data || {});
       return { color: composeColor(frozen, data), print: composePrint(frozen, data) };
@@ -1269,6 +1594,8 @@
   };
 
   setMode("wanted");
+  renderBorderPicker();
+  loadCustomBorders().then(renderBorderPicker);
 })();
 </script>
 </body>

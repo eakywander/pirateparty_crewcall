@@ -1,39 +1,58 @@
 CREW CALL - PHOTO FILE NAMES
 ============================
 Name each photo EXACTLY like this (all lowercase), and upload it
-next to index.html. Ending can be .jpeg, .jpeg, .png, .webp or .heic.
+next to index.html. Ending can be .jpg, .jpeg, .png, .webp or .heic.
 Any photo you skip just shows the built-in art instead.
 
 STRAW HAT PIRATES
-  strawhat-flag.jpeg
-  strawhat-luffy.jpeg
-  strawhat-zoro.jpeg
-  strawhat-nami.jpeg
-  strawhat-usopp.jpeg
-  strawhat-sanji.jpeg
+  strawhat-flag.jpg
+  strawhat-luffy.jpg
+  strawhat-zoro.jpg
+  strawhat-nami.jpg
+  strawhat-usopp.jpg
+  strawhat-sanji.jpg
 
 WHITEBEARD PIRATES
-  whitebeard-flag.jpeg
-  whitebeard-whitebeard.jpeg   (Edward Newgate)
-  whitebeard-marco.jpeg
-  whitebeard-ace.jpeg
-  whitebeard-jozu.jpeg
-  whitebeard-izo.jpeg
+  whitebeard-flag.jpg
+  whitebeard-whitebeard.jpg   (Edward Newgate)
+  whitebeard-marco.jpg
+  whitebeard-ace.jpg
+  whitebeard-jozu.jpg
+  whitebeard-izo.jpg
 
 BIG MOM PIRATES
-  bigmom-flag.jpeg
-  bigmom-linlin.jpeg
-  bigmom-katakuri.jpeg
-  bigmom-smoothie.jpeg
-  bigmom-cracker.jpeg
-  bigmom-perospero.jpeg
+  bigmom-flag.jpg
+  bigmom-linlin.jpg
+  bigmom-katakuri.jpg
+  bigmom-smoothie.jpg
+  bigmom-cracker.jpg
+  bigmom-perospero.jpg
 
 ROGER PIRATES
-  roger-flag.jpeg
-  roger-roger.jpeg
-  roger-rayleigh.jpeg
-  roger-buggy.jpeg
-  roger-shanks.jpeg
-  roger-crocus.jpeg
+  roger-flag.jpg
+  roger-roger.jpg
+  roger-rayleigh.jpg
+  roger-buggy.jpg
+  roger-shanks.jpg
+  roger-crocus.jpg
 
 Tip: square-ish photos look best (they're shown in circles).
+
+
+PHOTO BOOTH STRIP BORDERS  (optional, for booth.html)
+=====================================================
+Design at 1200 x 3600 px (2 x 6 in). Use strip-template.png as a guide:
+the 3 gray boxes are where the photos go, and they cover your art there.
+PNG is best. Upload next to booth.html with these exact names:
+
+  strip-1.png            replaces border 1 (Parchment)
+  strip-2.png            replaces border 2 (Captain's gold)
+  strip-3.png            replaces border 3 (High seas)
+
+Extras (only if you want them):
+  strip-1-overlay.png    art drawn ON TOP of the photos. Must be a PNG
+                         with see-through holes where the photos show.
+  strip-1-print.png      a black-and-white version used only for the
+                         Rollo. Without it, your color border is
+                         converted to black and white automatically.
+  (same for -2 and -3)
