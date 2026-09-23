@@ -4,7 +4,7 @@ A One Piece party team randomizer. Guests type their name and get sorted into a 
 
 Visit App: https://eakywander.github.io/pirateparty_crewcall/
 
-Visit Photo Booth: [https://eakywander.github.io/pirateparty_crewcall/](https://eakywander.github.io/pirateparty_crewcall/booth.html)
+Visit Photo Booth: [Photobooth/](https://eakywander.github.io/pirateparty_crewcall/booth.html)
 
 ## How it works
 
