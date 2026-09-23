@@ -1,0 +1,39 @@
+CREW CALL - PHOTO FILE NAMES
+============================
+Name each photo EXACTLY like this (all lowercase), and upload it
+next to index.html. Ending can be .jpeg, .jpeg, .png, .webp or .heic.
+Any photo you skip just shows the built-in art instead.
+
+STRAW HAT PIRATES
+  strawhat-flag.jpeg
+  strawhat-luffy.jpeg
+  strawhat-zoro.jpeg
+  strawhat-nami.jpeg
+  strawhat-usopp.jpeg
+  strawhat-sanji.jpeg
+
+WHITEBEARD PIRATES
+  whitebeard-flag.jpeg
+  whitebeard-whitebeard.jpeg   (Edward Newgate)
+  whitebeard-marco.jpeg
+  whitebeard-ace.jpeg
+  whitebeard-jozu.jpeg
+  whitebeard-izo.jpeg
+
+BIG MOM PIRATES
+  bigmom-flag.jpeg
+  bigmom-linlin.jpeg
+  bigmom-katakuri.jpeg
+  bigmom-smoothie.jpeg
+  bigmom-cracker.jpeg
+  bigmom-perospero.jpeg
+
+ROGER PIRATES
+  roger-flag.jpeg
+  roger-roger.jpeg
+  roger-rayleigh.jpeg
+  roger-buggy.jpeg
+  roger-shanks.jpeg
+  roger-crocus.jpeg
+
+Tip: square-ish photos look best (they're shown in circles).
